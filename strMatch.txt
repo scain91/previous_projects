@@ -1,0 +1,190 @@
+import java.io.*;
+import java.util.*;
+
+public class strMatch {
+	public static void main(String[] args) throws IOException {
+		assert args.length == 3;
+		String patternfile = args[0];
+		String sourcefile = args[1];
+		String resultsfile = args[2];
+		
+		File patterninfile = new File(patternfile);
+		File sourceinfile = new File(sourcefile);
+		File resultsoutfile = new File(resultsfile);
+		
+		Scanner patternReader = new Scanner(patterninfile);
+		//Scanner sourceReader = new Scanner(sourceinfile);
+		PrintStream printer = new PrintStream(resultsoutfile);
+	
+		patternReader.useDelimiter("&\n");
+		while(patternReader.hasNext()) {
+			String pattern = patternReader.next().replace("&", "");
+			
+			bruteForce(sourceinfile, pattern, printer);
+			rabinKarp(sourceinfile, pattern, printer);
+			kmp(sourceinfile, pattern, printer);
+			//boyerMore(sourceinfile, pattern, printer);
+		}
+	}
+	
+	public static void bruteForce(File sourceinfile, String pattern, PrintStream printer) throws IOException {
+		Boolean match = false;
+		FileReader sourceReader = new FileReader(sourceinfile);
+		BufferedReader sourceInput = new BufferedReader(sourceReader);
+		
+		int nextChar = sourceInput.read();
+		int patternLen = pattern.length();
+		while(nextChar != (-1)) {
+			//mark
+			sourceInput.mark(patternLen+1);
+			for(int j = 0; j < patternLen && nextChar != -1; j++) {
+				if(pattern.charAt(j) != nextChar) break;
+				if(j == patternLen -1) {
+					//found match
+					match = true;
+					break;
+				}
+				nextChar = sourceInput.read();
+			}
+			if(match) break;
+			//reset
+			sourceInput.reset();
+			// nextChar update
+			nextChar = sourceInput.read();
+		}
+		results("BF", match, pattern, printer);
+	}
+	
+	public static void rabinKarp(File sourceinfile, String pattern, PrintStream printer) throws IOException {
+	
+		Boolean match = false;
+		FileReader sourceReader = new FileReader(sourceinfile);
+		BufferedReader sourceInput = new BufferedReader(sourceReader);
+		BufferedReader leadReader = new BufferedReader(sourceReader);
+		
+		int patternLen = pattern.length();
+		int hash = 0;
+		int patternHash = 0;
+		
+		//compute hash
+		sourceInput.mark(patternLen+1);
+		for(int i = 0; i < patternLen; i++) {
+			hash += sourceInput.read();
+			patternHash += (int)pattern.charAt(i);
+			//System.out.print(leadReader.read());
+		}
+		
+		sourceInput.reset();
+		int nextChar = sourceInput.read();
+		
+		while(nextChar != (-1)) {
+			//mark
+			sourceInput.mark(patternLen+1);
+			int char1 = nextChar;
+			//check hash
+			
+			if(hash == patternHash) {
+				for(int j = 0; j < patternLen && nextChar != -1; j++) {
+					if(pattern.charAt(j) != nextChar) break;
+					if(j == patternLen-1) {
+						//found match
+						match = true;
+						break;
+					}
+					nextChar = sourceInput.read();
+				}
+				//reset
+				sourceInput.reset();
+			}
+			else {
+				nextChar = sourceInput.read();
+			}
+			if(match) break;
+			
+			sourceInput.mark(patternLen+1);
+			sourceInput.skip(patternLen-2);
+			int remove = sourceInput.read();
+			sourceInput.reset();
+			
+			//rolling hash function
+			hash -= char1;
+//			int thing = leadReader.read();
+//			System.out.println((char)thing);
+//			hash += thing;//remove;
+			hash += remove;
+		}
+		results("RK", match, pattern, printer);
+	}
+	
+	public static void kmp(File sourceinfile, String pattern, PrintStream printer) throws IOException {
+		Boolean match = false;
+		FileReader sourceReader = new FileReader(sourceinfile);
+		BufferedReader sourceInput = new BufferedReader(sourceReader);
+		
+		int nextChar = sourceInput.read();
+		int patternLen = pattern.length(); 
+		int l = 0;
+		int r = 0;
+		//core method
+		int core[] = core(pattern);
+		while(nextChar != (-1)) {
+					
+			//loop here
+			if(nextChar == pattern.charAt(r-l)) {
+				r++;
+				if((r-l) == patternLen) match = true;
+			}
+			else if(nextChar != pattern.charAt(r-l) && r == l) {
+				r++;
+				l++;
+			}
+			else if(nextChar != pattern.charAt(r-l) && r >= l) {
+				l += core[r-l];
+				r = l;
+				long skippedChars = sourceInput.skip(core[r-l]);
+				if(skippedChars != core[r-l]) break;
+			}
+			if(match) break;
+			nextChar = sourceInput.read();
+		}
+		results("KMP", match, pattern, printer);
+	}
+	private static int[] core(String pattern) {
+		int m = pattern.length();
+		int f[] = new int[m];
+		f[0] = 0;
+		f[1] = 0;
+		int k;
+		for(int j = 2; j < m; j++) {
+			k = f[j-1];
+			while(k > 0 && pattern.charAt(j) != pattern.charAt(k+1)) {
+				k = f[k];
+			}
+			if(k == 0 && pattern.charAt(j) != pattern.charAt(k+1)) {
+				f[j] = 0;
+			}
+			else {
+				f[j] = k+1;
+			}
+		}
+		return f;
+	}
+	
+	public static void boyerMore(File sourceinfile, String pattern, PrintStream printer) {
+		Boolean match = false;
+		results("BM", match, pattern, printer);
+	}
+	
+	public static void results(String name, Boolean success, String pattern, PrintStream printer) {
+		if(pattern.length() == 0) success = true;
+		String match = "";
+		if(success) {
+			match = "MATCHED";
+		}
+		else {
+			match = "FAILED";
+		}
+		String result = (name + " " + match + ": " + pattern + "\n");
+		printer.append(result);
+	}
+}
